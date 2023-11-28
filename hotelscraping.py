@@ -4,18 +4,36 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
+import time
+
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service as ChromeService
+from webdriver_manager.chrome import ChromeDriverManager
+
+# Use this guide to select your web browser of choice
+
+Chrome_service = ChromeService(ChromeDriverManager().install())
+
+driver = webdriver.Chrome(service=Chrome_service)
+driver.implicitly_wait(5)
+
+URL = "https://zh.hotels.com/Hotel-Search?adults=2&d1=2023-09-29&d2=2023-09-30&destination=London%2C%20England%2C%20United%20Kingdom&endDate=2023-12-06&latLong=51.50746%2C-0.127673&locale=en_HK&pos=HCOM_HK&regionId=2114&rooms=1&semdtl=&siteid=300000039&sort=RECOMMENDED&startDate=2023-12-05&theme=&useRewards=false&userIntent="
 
 
-url = 'https://www.hotels.com/Hotel-Search?adults=2&d1=2023-09-29&d2=2023-09-30&destination=London%2C%20England%2C%20United%20Kingdom&endDate=2023-09-30&latLong=51.50746%2C-0.127673&regionId=2114&rooms=1&semdtl=&sort=RECOMMENDED&startDate=2023-09-29&theme=&useRewards=false&userIntent='
-response=requests.get(url)
+driver.get(URL)
+time.sleep(10)
 
-soup= BeautifulSoup(response.content, 'html.parser')
+response=requests.get(URL)
+
+subhtml = driver.page_source
+soup= BeautifulSoup(subhtml, 'html.parser')
 
 prices = soup.find_all('div', class_="uitk-text uitk-type-500 uitk-type-medium uitk-text-emphasis-theme")
 prices_l = []
 for price in prices:
     prices_l.append(price.text)
-prices_l = [float(price.replace('$','')) for price in prices_l]
+prices_l = [float(price.replace('HK$','').replace(',','')) for price in prices_l]
 
 hotels = soup.find_all('h3', class_="uitk-heading uitk-heading-5 overflow-wrap uitk-layout-grid-item uitk-layout-grid-item-has-row-start")
 hotels_l = []
@@ -32,7 +50,10 @@ reviews_l = [int(review.replace(',', '').split()[0]) for review in reviews_l]
 ratings = soup.find_all('span', class_="uitk-badge-base-text")
 ratings_l = []
 for rating in ratings:
-    ratings_l.append(float(rating.text))
+    try:
+        ratings_l.append(float(rating.text))
+    except ValueError:
+        ratings_l.append(float(0))
     
 comments = soup.find_all('div', class_="uitk-text truncate-lines-2 uitk-type-300 uitk-type-medium uitk-text-emphasis-theme")
 comments_l = []
@@ -41,10 +62,8 @@ for comment in comments:
     
 table_data = {
     'Hotel': hotels_l,
-    'Price': prices_l,
-    'Comment': comments_l,
-    'Rating': ratings_l,
-    'Review': reviews_l
+    'Price': prices_l
+
 }
 
 hotel_df = pd.DataFrame(table_data)
@@ -52,12 +71,7 @@ print(hotel_df)
 
 sns.set_style('whitegrid')
 
-plt.figure(figsize=(6,5))
-sns.barplot(x='Comment', y='Price', data=hotel_df)
-plt.title('Price by Comment')
-plt.xlabel('Comment')
-plt.ylabel('Price')
-plt.show()
+
 
 plt.figure(figsize=(6,4))
 sns.kdeplot(hotel_df['Price'], fill=True)
